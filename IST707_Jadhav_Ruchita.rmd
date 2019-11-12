@@ -1,0 +1,270 @@
+---
+output: html_document
+---
+
+# IST 707 Homework1 : Associative Rule Minig
+
+**Introduction:**
+
+In this assignment we are using the association rule learning method for discovering interesting relations between variables in  given dataset AdultUCI. It is intended to identify strong rules discovered in AdultUCI using some measures of interestingness.Also we are trying to find significant and strong rules contributing to the income of collected
+
+**Objective:**
+
+- Find significant and strong rules contributing to the income of collected from individuals from different countries and ages.
+- Find correlation between variables inthe given dataset AdultUCI.
+- Provide interpretations of the above chosen association rules and also discuss why you consider
+them interesting and significant
+
+
+
+```{r}
+#Installing all the required packges.
+library(caret)
+library(RANN)
+library(corrplot)
+library(arules)
+library(arulesViz)
+```
+Dataset used: AdultUCI
+Storing the dataset in global variable.
+
+```{r}
+data("AdultUCI")
+UCI <- as.data.frame(AdultUCI)
+
+#Understanding the structure of the data 
+str(UCI)
+```
+###Following the CRISM-DM Process of Data Mining:###
+- Get business understanding of the data by data exploration and descriptive statistics.
+- Data Preperation - Data preprocessing, cleaning, transformation
+- Modelling
+- Evaluation
+- Development
+
+This is the cyclic process.
+
+##Data Cleaninig##
+1. Understanding the structure of dataset.
+```{r}
+summary(UCI)
+nrow(UCI)
+```
+
+2. Handling the Duplicated Records.
+```{r}
+UCI[duplicated(UCI)|duplicated(UCI, fromLast = T), ]
+
+```
+3. Checking the missing values in dataset.
+```{r}
+sapply(UCI, function(x) sum(is.na(x)))
+#Finding the total count of missing values.
+sum(!complete.cases(UCI))
+```
+Summary and further steps of analysis:  
+
+- Varialbes 'workclass', 'income', 'occupation', 'native-country' has NAs.
+- Total number of rows with NAs: 18680
+- Remove the duplicate values in dataset.
+- Since variable 'income' is our dependent variable. I would prefer not to delete the rows with misssing values in stead of doing the imputations. Since here the accuracy of the dataset is not desirable and this assignment is focused on learning and understandng the data manulation and transformation techniques I will impute the missing values for 'income' variable.
+- Replacing the missing values of workclass with most occurign values i.e. Never-worked
+- Replacing the missing values of native-country with most occuring values i.e. United-States
+
+
+###Using KNN imputation method for variable 'income':
+```{r}
+#Using knn impute method.
+#convert the income vector to (1 or 0)
+UCI2 <- UCI
+View(UCI2)
+UCI2$income <- ifelse(UCI$income == 'small',0,1)
+#Using caret::preProcess function to impute the missing values in the `income` column to the nearby datapoints.
+preprocess <- preProcess(UCI2, method=c('knnImpute','center','scale'))
+preprocess
+#UCI2 <- predict(preprocess, UCI2)
+```
+
+- Removing the duplicate values.
+
+```{r}
+UCI2 <- UCI2[!duplicated(UCI2),]
+```
+
+- Replacing the missing values of workclass with most occurign values i.e. Never-worked.
+
+```{r}
+UCI2$workclass[is.na(UCI2$workclass)] <- "Never-worked"
+```
+
+- Replacing the missing values of native-country with most occuring values i.e. United-States.
+
+```{r}
+UCI2$`native-country`[is.na(UCI2$`native-country`)] <- "United-States"
+```
+- Deleting the rows from the other categorical variables 'occupation'.
+
+```{r}
+UCI2 <- UCI2[!is.na(UCI2$occupation),]
+```
+###**Finding the correlation between the attributes.**###
+
+
+```{r}
+cor_matrix <- cor(UCI2[complete.cases(UCI2), sapply(UCI2, is.numeric)], method = "pearson")
+corrplot(cor_matrix, type = "upper")
+```
+
+##**Association Rule Mining **##
+
+In order to generate the ruleset we have to discretize the variables.
+
+```{r}
+#Summarizing the dataset for discretizing the variables.
+summary(UCI2)
+
+#Storing the columns to discretize in variable.
+var_to_discretize <- c("age", "fnlwgt","education-num","capital-gain","capital-loss","hours-per-week","income")
+
+UCI4<- UCI2
+```
+
+
+**Discretization of the variables**
+```{r}
+UCI4$age <- discretize(UCI2$age, method = "frequency", breaks = 3, 
+                               labels = c("low", "medium", "high"), order = T)
+
+UCI4$fnlwgt <- discretize(UCI2$fnlwgt, method = "frequency", breaks = 3, 
+                       labels = c("low", "medium", "high"), order = T)
+
+UCI4$`education-num` <- discretize(UCI2$`education-num`, method = "frequency", breaks = 3, 
+                          labels = c("Junior", "Middle-SChool", "Senior"), order = T)
+
+UCI4$`capital-gain` <- discretize(UCI2$`capital-gain`, method = "interval", breaks = 5, 
+                                   labels = c("lowest", "low","medium", "high", "highest"), order = T)
+
+UCI4$`capital-loss` <- discretize(UCI2$`capital-loss`, method = "interval", breaks = 5, 
+                                  labels = c("lowest", "low","medium", "high", "highest"), order = T)
+
+UCI4$`hours-per-week` <- discretize(UCI2$`hours-per-week`, method = "interval", breaks = 3, 
+                                  labels = c("low", "medium", "high"), order = T)
+
+UCI4$income <- discretize(UCI2$`hours-per-week`, method = "interval", breaks = 3, 
+                                    labels = c("low", "medium", "high"), order = T)
+```
+
+- Plotting the box-plot for analyzing the dataset after discretization.
+```{r}
+boxplot(age ~ income, data = UCI4)
+```
+
+**Steps for generating the association rule model.**
+
+1. Generate model with default setting.
+2. Fine-tuned model by experimenting with other algorithm paramters.
+3. Output and present significant rules that predict "income".
+
+```{r}
+#Creating the Apriori model with default settings.
+default_rules <- apriori(UCI4)
+```
+
+Observing the top 5 rules.
+
+```{r}
+inspect(head(default_rules, 5))
+
+
+plot(default_rules, measure = c("support", "lift"), shading = "confidence")
+
+
+```
+
+Plotting the Graph for top 10 rules.
+```{r}
+plot(default_rules[1:10],method='graph')
+```
+**Analysis of Association Rule model**
+
+1. Rules with highest support, confidence and lift have these attributes capital-loss=lowest, hours-per-week=medium, native-country=United-States, income=medium, race=white.
+2. The above rules have have support of 82%, confidence of 82% and lift of 1 which indicates significance of association .
+3. Variables race, workclass, hours-per-week, native-country, and capital-loss are the good predictors.
+
+
+**Fine-tuning the model by changing the parameter values to find significant rules.**
+```{r}
+rules_record <- apriori(UCI4[, sapply(UCI4, is.factor)], 
+                        parameter = list(support = 0.5, confidence = 0.9, minlen = 6, maxlen = 15))
+
+#Inspecting the top 5 rules.
+inspect(head(rules_record,5))
+
+quality(head(rules_record, 10))
+```
+
+
+Plotting the rules 
+
+```{r}
+plot(rules_record, measure = c("support", "lift"), shading = "confidence")
+```
+
+Plotting the Graph for top 10 rules.
+```{r}
+plot(rules_record[1:10],method='graph')
+```
+**Analysis of Association Rule model**
+
+1. Rules with highest support, confidence and lift have these attributes capital-loss=lowest, hours-per-week=medium, native-country=United-States, income=medium, workclass=private.
+2. The above rules have have support of 52%, confidence of 99% and lift of 1.001 which indicates significance of association .
+3. Variables workclass, hours-per-week, native-country, and capital-loss are the good predictors.
+
+**Creating the significant ruleset for predicting the income.**
+
+```{r}
+income_rules <- apriori(data = UCI4, parameter = list(supp = 0.5, conf = 0.85),
+                 appearance = list(default = "lhs", rhs = c("income=low","income=medium", "income=high")),
+                 control = list(verbose = F))
+
+inspect(head(sort(income_rules, by = "lift", descreasing = T), 3))
+
+quality(head(income_rules, 10))
+
+```
+
+Plotting the income rules 
+
+```{r}
+plot(income_rules, measure = c("support", "lift"), shading = "confidence")
+```
+
+
+Plotting the graph of income rules
+
+```{r}
+plot(income_rules[1:10],method='graph')
+```
+
+**Analysis of Association Rule model**
+
+1. Rules with highest support, confidence and lift have these attributes capital-loss=lowest, hours-per-week=medium, native-country=United-States, income=medium, sex=male.
+2. The above rules have have support of 82% and lift of 1.21 which indicates significance of association .
+3. Variables sex, hours-per-week, workclass, are the good predictors of the variable income.
+
+
+##Interpretations of Association Rule model##
+1. Association rules with highest support and lift have these attributes in common: capital-loss=lowest, hours-per-week=medium, native-country=United-States, income=medium, sex=male, race = white. 
+2. In other words, white males living in the country United States working average to over time have the highest income.
+3. The top rules in association model have the confidence of 82% support of 82% which indicates a strong correlation between the antecendent attribues and income
+4. Strong rules have lift equal to or above 1.21, which confirms the significance of rules in predicting the income.
+
+
+##Interactive Shiny application for the prediction of variable income##
+[Interactive Shiny web app](https://ruchitaj2.shinyapps.io/IST_707_HW1/)
+
+**References**
+
+- (https://shiny.rstudio.com/articles/shinyapps.html)
+- (https://deepwork.shinyapps.io/IntroShiny/)
+
