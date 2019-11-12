@@ -26,5 +26,11 @@ Prediction task is to determine whether a person makes over 50K a year.
 Ron Kohavi, "Scaling Up the Accuracy of Naive-Bayes Classifiers: a Decision-Tree Hybrid", Proceedings of the Second International Conference on Knowledge Discovery and Data Mining, 1996
 [Web Link]
 
+## Instructions:
 
+This document is in Rmarkdown format.
+
+System requirement:
+
+R-studio
 
